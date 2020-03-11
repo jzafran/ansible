@@ -239,7 +239,7 @@ def match_asg_tags(tags_to_match, asg):
     return True
 
 
-def find_asgs(conn, module, name=None, tags=None):
+def find_asgs(conn, module, name=None, tags=None, group_names=None):
     """
     Args:
         conn (boto3.AutoScaling.Client): Valid Boto3 ASG client.
@@ -331,7 +331,10 @@ def find_asgs(conn, module, name=None, tags=None):
 
     try:
         asgs_paginator = conn.get_paginator('describe_auto_scaling_groups')
-        asgs = asgs_paginator.paginate().build_full_result()
+        query_kwargs = {}
+        if group_names:
+            query_kwargs["AutoScalingGroupNames"] = group_names
+        asgs = asgs_paginator.paginate(**query_kwargs).build_full_result()
     except ClientError as e:
         module.fail_json(msg=e.message, **camel_dict_to_snake_dict(e.response))
 
@@ -392,6 +395,7 @@ def main():
         dict(
             name=dict(type='str'),
             tags=dict(type='dict'),
+            group_names=dict(required=False, type='list', elements='str'),
         )
     )
     module = AnsibleModule(argument_spec=argument_spec)
@@ -401,6 +405,7 @@ def main():
 
     asg_name = module.params.get('name')
     asg_tags = module.params.get('tags')
+    group_names = module.params.get('group_names')
 
     try:
         region, ec2_url, aws_connect_kwargs = get_aws_connection_info(module, boto3=True)
@@ -408,7 +413,7 @@ def main():
     except ClientError as e:
         module.fail_json(msg=e.message, **camel_dict_to_snake_dict(e.response))
 
-    results = find_asgs(autoscaling, module, name=asg_name, tags=asg_tags)
+    results = find_asgs(autoscaling, module, name=asg_name, tags=asg_tags, group_names=group_names)
     module.exit_json(results=results)
 
 
